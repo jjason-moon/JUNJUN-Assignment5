@@ -1,88 +1,122 @@
-import Head from "next/head";
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
-import styles from "@/styles/Home.module.css";
+import React from 'react'
+import * as d3 from "d3"
+import 'bootstrap/dist/css/bootstrap.css'
+import { Row, Col, Container} from 'react-bootstrap'
+import ScatterPlot from '../components/scatterPlot'
+import BarChart from '../components/barChart'
+import Tooltip from '../components/tooltips'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const csvUrl = 'https://gist.githubusercontent.com/hogwild/3b9aa737bde61dcb4dfa60cde8046e04/raw/citibike2020.csv'
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+function useData(csvPath){
+    const [dataAll, setData] = React.useState(null);
+    React.useEffect(()=>{
+        d3.csv(csvPath).then(data => {
+            data.forEach(d => {
+                d.start = +d.start;
+                d.tripdurationS = +d.tripdurationS;
+                d.end = +d.end;
+                d.tripdurationE = +d.tripdurationE;
+            });
+            setData(data);
+        });
+    }, []);
+    return dataAll;
+}
+
+const Charts = () => {
+    const [month, setMonth] = React.useState('4');
+    
+    // 1. 所有的状态都在这里定义
+    const [selectedStation, setSelectedStation] = React.useState(null);
+    const [tooltipX, setTooltipX] = React.useState(null);
+    const [tooltipY, setTooltipY] = React.useState(null);
+   
+    const dataAll = useData(csvUrl);
+    if (!dataAll) {
+        return <pre>Loading...</pre>;
+    };
+    
+    const WIDTH = 600;
+    const HEIGHT = 400;
+    const margin = { top: 20, right: 20, bottom: 20, left: 35};
+    const innerHeightScatter = HEIGHT - margin.top - margin.bottom;
+    const innerHeightBar = HEIGHT - margin.top - margin.bottom-120;
+    const innerWidth = WIDTH - margin.left - margin.right;
+    const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const data = dataAll.filter( d => {
+        return d.month === MONTH[month]
+    });
+
+    const xScaleScatter = d3.scaleLinear()
+        .domain([0, d3.max(dataAll, d => d.tripdurationS)])
+        .range([0, innerWidth])
+        .nice();
+        
+    const yScaleScatter = d3.scaleLinear()
+        .domain([0, d3.max(dataAll, d => d.tripdurationE)])
+        .range([innerHeightScatter, 0])
+        .nice();
+
+    const xScaleBar = d3.scaleBand()
+        .domain(data.map(d => d.station)) 
+        .range([0, innerWidth])
+        .padding(0.2);
+
+    const yScaleBar = d3.scaleLinear()
+        .domain([0, d3.max(data, d => d.start)]) 
+        .range([innerHeightBar, 0])
+        .nice();
+
+    const changeHandler = (event) => {
+        setMonth(event.target.value);
+    };
+
+    // 找到当前选中站点的数据传给 Tooltip
+    const selectedData = selectedStation ? data.find(d => d.station === selectedStation) : null;
+    
+    return (
+        <Container >
+            <Row>
+                <Col lg={3} md={2}>
+                    <input key="slider" type='range' min='0' max='11' value={month} step='1' onChange={changeHandler}/>
+                    <input key="monthText" type="text" value={MONTH[month]} readOnly/>
+                </Col>
+            </Row>
+            <Row className='justify-content-md-center'>
+                <Col>
+                    <svg width={WIDTH} height={HEIGHT}>
+                        <ScatterPlot 
+                            offsetX={margin.left} offsetY={margin.top} data={data} xScale={xScaleScatter} yScale={yScaleScatter} height={innerHeightScatter} width={innerWidth}
+                            selectedStation={selectedStation} setSelectedStation={setSelectedStation}
+                            setTooltipX={setTooltipX} setTooltipY={setTooltipY}
+                        />
+                    </svg>
+                </Col>
+                <Col>
+                    <svg width={WIDTH} height={HEIGHT}>
+                        <BarChart 
+                            offsetX={margin.left} offsetY={margin.top} data={data} xScale={xScaleBar} yScale={yScaleBar} height={innerHeightBar} width={innerWidth}
+                            selectedStation={selectedStation} setSelectedStation={setSelectedStation}
+                            setTooltipX={setTooltipX} setTooltipY={setTooltipY}
+                        />
+                    </svg>
+                </Col>
+            </Row>
+            
+            {/* 2. Tooltip 放在 svg 的外面！ */}
+            {selectedStation && selectedData && (
+                <Tooltip 
+                    d={selectedData} 
+                    x={tooltipX} 
+                    y={tooltipY} 
+                />
+            )}
+        </Container>
+    )   
+}
 
 export default function Home() {
-  return (
-    <>
-      <Head>
-        <title>Create Next App</title>
-        <meta name="description" content="Generated by create next app" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      <div
-        className={`${styles.page} ${geistSans.variable} ${geistMono.variable}`}
-      >
-        <main className={styles.main}>
-          <Image
-            className={styles.logo}
-            src="/next.svg"
-            alt="Next.js logo"
-            width={100}
-            height={20}
-            priority
-          />
-          <div className={styles.intro}>
-            <h1>To get started, edit the index.js file.</h1>
-            <p>
-              Looking for a starting point or more instructions? Head over to{" "}
-              <a
-                href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Templates
-              </a>{" "}
-              or the{" "}
-              <a
-                href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Learning
-              </a>{" "}
-              center.
-            </p>
-          </div>
-          <div className={styles.ctas}>
-            <a
-              className={styles.primary}
-              href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Image
-                className={styles.logo}
-                src="/vercel.svg"
-                alt="Vercel logomark"
-                width={16}
-                height={16}
-              />
-              Deploy Now
-            </a>
-            <a
-              className={styles.secondary}
-              href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Documentation
-            </a>
-          </div>
-        </main>
-      </div>
-    </>
-  );
+    return <Charts />;
 }
